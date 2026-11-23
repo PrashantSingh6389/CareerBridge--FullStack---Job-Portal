@@ -1,17 +1,58 @@
-const applicationRoutes = require("./routes/applications");
+
+require("dotenv").config();
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-require("dotenv").config();
+
 const authRoutes = require("./routes/auth");
+const applicationRoutes = require("./routes/applications");
+
 const app = express();
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-}));
+// Middleware
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+  })
+);
+
 app.use(express.json());
-app.use("/api/applications", applicationRoutes);
-app.use("/api/auth", authRoutes);
+
+// MongoDB connection cache
+let cached = global.mongooseConnection;
+
+if (!cached) {
+  cached = global.mongooseConnection = {
+    conn: null,
+    promise: null,
+  };
+}
+
+async function connectDB() {
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  if (!process.env.MONGODB_URI) {
+    throw new Error("MONGODB_URI is missing");
+  }
+
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(process.env.MONGODB_URI)
+      .then((mongooseInstance) => mongooseInstance)
+      .catch((error) => {
+        cached.promise = null;
+        throw error;
+      });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+
+// Main route
 app.get("/", (req, res) => {
   res.json({
     message: "CareerBridge API is running!",
@@ -19,63 +60,62 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "OK",
-    database: mongoose.connection.readyState === 1
-      ? "connected"
-      : "disconnected",
-  });
-});
-const applications = [];
-
-app.post("/api/applications", (req, res) => {
-  const { jobId, jobTitle, company } = req.body;
-
-  if (!jobId || !jobTitle || !company) {
-    return res.status(400).json({
-      message: "Job details are required",
-    });
-  }
-
-  const application = {
-    id: Date.now().toString(),
-    jobId,
-    jobTitle,
-    company,
-    status: "Applied",
-    appliedAt: new Date(),
-  };
-
-  applications.push(application);
-
-  res.status(201).json({
-    message: "Application submitted successfully",
-    application,
-  });
-});
-
-app.get("/api/applications", (req, res) => {
-  res.json(applications);
-});
-const PORT = process.env.PORT || 5000;
-
-async function startServer() {
+// Health check
+app.get("/api/health", async (req, res) => {
   try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error("MONGODB_URI is missing in the .env file");
-    }
+    await connectDB();
 
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log("MongoDB connected successfully");
-
-    app.listen(PORT, () => {
-      console.log(`CareerBridge API running on http://localhost:${PORT}`);
+    res.json({
+      status: "OK",
+      database: "connected",
     });
   } catch (error) {
-    console.error("Backend startup failed:", error.message);
-    process.exit(1);
+    console.error("Health check failed:", error.message);
+
+    res.status(503).json({
+      status: "error",
+      database: "disconnected",
+    });
   }
+});
+
+// Ensure MongoDB is connected before database routes
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("MongoDB connection failed:", error.message);
+
+    res.status(503).json({
+      status: "error",
+      message: "Database connection failed",
+    });
+  }
+});
+
+// API routes
+app.use("/api/applications", applicationRoutes);
+app.use("/api/auth", authRoutes);
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+
+  res.status(500).json({
+    status: "error",
+    message: "Internal server error",
+  });
+});
+
+// Local development
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, () => {
+    console.log(`CareerBridge API running on port ${PORT}`);
+  });
 }
 
-startServer();
+// Vercel
+module.exports = app;
