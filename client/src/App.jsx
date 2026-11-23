@@ -89,7 +89,9 @@ const categories = [
   { name: "Marketing", count: "Growth & content", icon: Megaphone },
 ];
 
-function App() {
+ const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "${API_BASE_URL}";
+   function App() {
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("");
   const [activeType, setActiveType] = useState("All");
@@ -149,7 +151,7 @@ const [authLoading, setAuthLoading] = useState(false);
   return;
 }
   try {
-    const response = await fetch("http://localhost:5000/api/applications", {
+    const response = await fetch("${API_BASE_URL}/api/applications", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -183,7 +185,7 @@ const [authLoading, setAuthLoading] = useState(false);
 
   try {
     const response = await fetch(
-      `http://localhost:5000/api/auth/${authMode}`,
+      `${API_BASE_URL}/api/auth/${authMode}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -214,7 +216,7 @@ const [authLoading, setAuthLoading] = useState(false);
 const loadMyApplications = async () => {
   try {
     const response = await fetch(
-      "http://localhost:5000/api/applications/my",
+      "${API_BASE_URL}/api/applications/my",
       {
         headers: {
           Authorization: `Bearer ${token}`,
