@@ -1,0 +1,21 @@
+# Query: API_BASE_URL
+# ContextLines: 1
+
+5 results - 1 file
+
+client\src\App.jsx:
+   91  
+   92:  const API_BASE_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+   94     function App() {
+
+  153    try {
+  154:     const response = await fetch("${API_BASE_URL}/api/applications", {
+  155        method: "POST",
+
+  187      const response = await fetch(
+  188:       `${API_BASE_URL}/api/auth/${authMode}`,
+  189        {
+
+  218      const response = await fetch(
+  219:       "${API_BASE_URL}/api/applications/my",
+  220        {
